@@ -1,5 +1,7 @@
-#inlude <stdlib>
+#include<stdlib.h>
+#include<iostream>
+
 int main(){
-  printf("Hello RonDjon, dijion being spelt incorrectly...");
-  return(0)
+  std::cout << ("Hello RonDjon, dijion being spelt incorrectly...") << std::endl;
+  return(0);
 }
