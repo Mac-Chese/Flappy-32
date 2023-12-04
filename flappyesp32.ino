@@ -1,8 +1,3 @@
-/*********
-  Rui Santos
-  Complete project details at https://randomnerdtutorials.com  
-*********/
-
 #include <Wire.h>
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
@@ -11,18 +6,36 @@
 #define SCREEN_WIDTH 128 // OLED display width, in pixels
 #define SCREEN_HEIGHT 64 // OLED display height, in pixels
 
-#define BUTTON_PIN 16 // ESP32 GPIO16 pin connected to button's pin
+#define BUTTON_PIN 2
 #define BUZZER_PIN 23 // ESP32 GPIO3 pin connected to Buzzer's pin
-
+#define BUZZER_2_PIN 0
 #define POT_PIN 15
 
-int birdY, lastBirdY = 0;
-int pipeX, pipeY, lastPipeX = 148, lastPipeY = 32; 
+const int birdStartingPosY = 16;
+const int gravityAmount = 1;
+const int jumpAmount = 18;
+const int pipeYMin = 8;
+const int pipeYMax = 48;
+const int birdX = 16;
+const int birdRad = 5;
+
+int birdY = birdStartingPosY;
+int lastBirdY = 0;
+int pipeX = 128;
+int pipeY = random(pipeYMin, pipeYMax);
+int lastPipeX = 148;
+int lastPipeY = 32; 
+
+int pipeRadius = 2;
+int pipeWidth = 10;
+int pipeHeight = 64; 
+int pipeSeperator = 38;
 
 int delayTime = -1;
 // notes in the melody:
 int melody[] = {
-  NOTE_A7
+  NOTE_A7,
+  NOTE_B2
 };
 
 // Declaration for an SSD1306 display connected to I2C (SDA, SCL pins)
@@ -30,7 +43,7 @@ Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
 void setup() {
   Serial.begin(115200);
-  pinMode(BUTTON_PIN, INPUT_PULLUP); // set ESP32 pin to input pull-up mode
+  pinMode(BUTTON_PIN, INPUT);
   pinMode(POT_PIN, INPUT);
 
   if(!display.begin(SSD1306_SWITCHCAPVCC, 0x3C)) { // Address 0x3D for 128x64
@@ -47,35 +60,154 @@ void setup() {
 
 void loop() {
   int potADCReading;
-  
-  for (int i = 128; i >= 0; i= i - 8){
-    potADCReading = analogRead(POT_PIN);
-    pipeX = i; 
-    birdY = map(potADCReading, 0, 4095, 0, 64);
-    pipeY = map(potADCReading, 0, 4095, 8, 56);
-    delayTime = map(potADCReading, 0, 4095, 0, 500);
+  int gravityCounter = 0;
+  unsigned long startTime, currentTime;
+  bool buttonLevel = false, lastButtonLevel = true;
+  bool gravityFlag = false;
+  bool loser = true;
+  bool justLost = false;
     
-    moveBird(16, birdY, 6, 16, lastBirdY, 6);
+  moveBird(birdX, birdY, birdRad, birdX, lastBirdY, birdRad);
+  movePipe(pipeX, pipeY, lastPipeX, lastPipeY);
+  display.display();
 
-    movePipe(pipeX, pipeY, lastPipeX, lastPipeY);
+  while (true) {
+    buttonLevel = digitalRead(BUTTON_PIN);
+    justLost = false;
 
-    lastBirdY = birdY;
-    lastPipeX = pipeX;
-    lastPipeY = pipeY;
-    display.display();
+    if (lastButtonLevel == false && buttonLevel == true) {
+      loser = false;
+      
+      Serial.println("Starting game");
 
-    tone(BUZZER_PIN, melody[0]);
-    delay(100);
-    noTone(BUZZER_PIN);
+      // reset game
+      birdY = birdStartingPosY;
+      lastBirdY = 0;
+      pipeX = 128;
+      pipeY = random(pipeYMin, pipeYMax);
+      lastPipeX = 148;
+      lastPipeY = 32; 
+
+      display.clearDisplay();
 
     }
+
+    lastButtonLevel = buttonLevel;
+
+    while (!loser)  {
+      startTime = millis();
+      
+      potADCReading = analogRead(POT_PIN);
+      delayTime = map(potADCReading, 0, 4095, 0, 500);
+
+      currentTime = millis();
+
+      do {
+
+        moveBird(birdX, birdY, birdRad, birdX, lastBirdY, birdRad);
+        movePipe(pipeX, pipeY, lastPipeX, lastPipeY);
+        lastBirdY = birdY;
+        lastPipeX = pipeX;
+        lastPipeY = pipeY;
+        display.display();
+
+        buttonLevel = digitalRead(BUTTON_PIN);
+
+        if (lastButtonLevel == false && buttonLevel == true) {
+          if ((birdY - jumpAmount) <= 2) {
+            birdY = 3;
+          }
+          else {
+            birdY -= jumpAmount;
+          }
+          
+          tone(BUZZER_PIN, melody[0], 20);
+
+        }
+        lastButtonLevel = buttonLevel;
+
+        if (birdY < SCREEN_HEIGHT && gravityFlag) {
+          birdY += gravityAmount;
+          }
+        else if (birdY >= SCREEN_HEIGHT && gravityFlag) {
+          loser = true;
+          justLost = true;
+        } 
+
+        // how frequently gravity takes effect, every two cycles
+        if (!gravityFlag) {
+          if (gravityCounter < 2){
+            gravityCounter ++;
+          }
+          
+          else {
+            gravityFlag = true;
+            gravityCounter = 0;
+          }
+        }
+
+        currentTime = millis();
+
+        if (hitDetection(birdX, birdY, pipeX, pipeY)) {
+          Serial.print(millis());
+          Serial.println(", hit detected");
+          loser = true;
+          justLost = true;
+        }
+        
+      } while (((currentTime - startTime) < delayTime) && !loser);
+
+      if (pipeX > 0){
+        pipeX -= 4;
+      }
+      else  {
+        pipeX = 128;
+        pipeY = random(pipeYMin, pipeYMax);
+      }
+    } 
+
+    // after you lose you have to wait half a second to start again
+    if (justLost) {
+      tone(BUZZER_2_PIN, melody[1], 500);
+      delay(500);
+    }
+  }
+}
+
+
+// returns true if hit is detected, false otherwise
+bool hitDetection(int birdX, int birdY, int pipeX, int pipeY){
+  int hitBoxLowY, hitBoxHighY;
+  int hitBoxRight;
+  int hitBoxMargin = (pipeSeperator / 2);
+  int pipeLeft, pipeRight;
+  bool birdHit = false;
   
-  
+  pipeLeft = pipeX;
+  pipeRight = pipeX + pipeWidth;
+  hitBoxRight = birdX + birdRad;
+
+  for (int i = 0; i < ((birdRad + 1) * 2); i++) {
+
+    if (((hitBoxRight - i) >= pipeLeft) && ((hitBoxRight - i) <= pipeRight)) {
+      
+      if (birdY > (pipeY + hitBoxMargin)){
+        birdHit = true;
+        break;
+      }
+
+      else if (birdY < (pipeY - hitBoxMargin)){
+        birdHit = true;
+        break;
+      }
+    }
+  }
+
+  return birdHit;
+
 }
 
 void movePipe(int pipeX, int pipeY, int lastPipeX, int lastPipeY) { 
-  int pipeRadius = 4, pipeWidth = 16, pipeHeight = 64, pipeSeperator = 17;
-
   int topX, topY, botX, botY;
   int lastTopX, lastTopY, lastBotX, lastBotY;
 
