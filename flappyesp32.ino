@@ -16,17 +16,21 @@ Description: This is a flappy bird game made to run on an esp32 development boar
 #define BUZZER_PIN 0
 #define POT_PIN 15
 
-const int birdStartingPosY = 16;
+
 const int gravityAmount = 3;
 const int jumpAmount = 18;
-const int pipeYMin = 15;
-const int pipeYMax = 48;
+
+const int birdStartingPosY = 16;
 const int birdX = 16;
 const int birdRad = 5;
+
+const int pipeYMin = 15;
+const int pipeYMax = 48;
 const int pipeRadius = 2;
 const int pipeWidth = 10;
 const int pipeHeight = 64; 
 const int pipeSeperator = 38;
+
 const int pipeNoise1 = 2500;
 const int pipeNoise2 = 3700;
 const int birdNoise = 620;
@@ -98,8 +102,11 @@ void loop() {
     pipeY = random(pipeYMin, pipeYMax);
 
     startMenu();
-    loser = false;
+    
     Serial.println("Starting Now");
+    // reset some stuff
+    loser = false;
+    currentScore = 0;
 
     display.clearDisplay();
 
@@ -180,8 +187,7 @@ void loop() {
 
 void startMenu()  {
     pipeX = 120;
-    birdY = 16;
-    currentScore = 0;
+    birdY = 16;=
     
     while (true) {
 
@@ -304,6 +310,7 @@ void drawMenuScoreBox() {
 
 }
 
+// draws a pipe in a new location
 void movePipe(int pipeX, int pipeY) { 
   int topX, topY, botY;
 
