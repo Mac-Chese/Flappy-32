@@ -187,7 +187,7 @@ void loop() {
 
 void startMenu()  {
     pipeX = 120;
-    birdY = 16;=
+    birdY = 16;
     
     while (true) {
 
